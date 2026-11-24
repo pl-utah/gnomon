@@ -1,3 +1,5 @@
+use gnomon::types::PointId;
+
 fn main() {
-    println!("Hello, world!");
+    dbg!("{}", PointId(32));
 }
