@@ -14,13 +14,4 @@ fn main() {
     if !source.ends_with('\n') {
         println!();
     }
-    println!("--- result ---");
-    match gnomon::script::run(&source) {
-        Ok(()) => println!("proof is correct"),
-        Err(error) => {
-            println!("proof is not correct");
-            eprintln!("{error}");
-            process::exit(1);
-        }
-    }
 }
