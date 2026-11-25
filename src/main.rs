@@ -9,10 +9,12 @@ fn main() {
         eprintln!("could not read proof file: {error}");
         process::exit(2);
     });
+    println!("--- proof ---");
     print!("{source}");
     if !source.ends_with('\n') {
         println!();
     }
+    println!("--- result ---");
     match gnomon::script::run(&source) {
         Ok(()) => println!("proof is correct"),
         Err(error) => {

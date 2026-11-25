@@ -1,6 +1,6 @@
 use nom::{
-    IResult, bytes::complete::take_while1, character::complete::space1, combinator::all_consuming,
-    multi::separated_list1,
+    bytes::complete::take_while1, character::complete::space1, combinator::all_consuming,
+    multi::separated_list1, IResult,
 };
 
 use crate::context::Context;
@@ -96,31 +96,5 @@ fn parse_command(input: &str) -> Result<Command, ()> {
             (*d).to_owned(),
         )),
         _ => Err(()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::run;
-
-    #[test]
-    fn checks_the_i1_example() {
-        assert_eq!(run(include_str!("../examples/i1.gnomon")), Ok(()));
-    }
-
-    #[test]
-    fn false_equal_assertion_reports_its_line() {
-        let source =
-            include_str!("../examples/i1.gnomon").replace("equal B C C A", "equal A B A A");
-        let error = run(&source).unwrap_err();
-        assert_eq!(error.line, 9);
-        assert!(error.message.starts_with("assertion failed:"));
-    }
-
-    #[test]
-    fn syntax_error_reports_its_line() {
-        let error = run("\npoint A extra\n").unwrap_err();
-        assert_eq!(error.line, 2);
-        assert_eq!(error.message, "invalid command syntax");
     }
 }

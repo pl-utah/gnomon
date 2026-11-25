@@ -28,7 +28,7 @@ impl Length {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Fact {
     DistinctPoints(PointId, PointId),
-    CenterOfCircle(PointId, CircleId),
+    CenterOfircle(PointId, CircleId),
     OnCircle(PointId, CircleId),
     InsideCircle(PointId, CircleId),
     CirclesIntersect(CircleId, CircleId),
