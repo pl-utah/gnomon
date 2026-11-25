@@ -10,11 +10,44 @@ command  ::= "point" NAME
            | "circle" NAME NAME NAME
            | "intersect" NAME NAME NAME
            | "equal" NAME NAME NAME NAME
+           | "have" FACT
+           | "therefore" FACT
+FACT     ::= "equal" NAME NAME NAME NAME
+           | "distinct" NAME NAME
 NAME     ::= [A-Za-z0-9_]+
 #+end_example
 
-=equal A B C D= checks that lengths =AB= and =CD= are already equal. It is
-an assertion only: it never inserts an equality fact.
+=have equal A B C D= and =have distinct P Q= check whether the named fact is
+already known. They neither add an assumption nor export a conclusion.
+=therefore equal A B C D= and =therefore distinct P Q= perform the same check;
+on success they add the normalized fact to =Context::conclusions=, not to the
+engine facts or assumptions. If the check fails, nothing is exported.
+=equal A B C D= remains a check-only compatibility form for =have equal=.
+=distinct A B= remains the explicit assumption command.
+
+The engine derives point distinctness from inside/boundary evidence on the
+same circle:
+
+#+begin_example
+InsideCircle(P, γ)   OnCircle(Q, γ)   (same γ)
+─────────────────────────────────────────────────
+DistinctPoints(P, Q)
+#+end_example
+
+This is the optimized unit-propagation consequence of E §3.4 circle axiom 4
+(=inside(P,γ) ⇒ ¬on(P,γ)=) plus equality propagation, not a new geometric
+axiom. Distinctness is not inferred from unrelated circles or from fresh IDs.
+The current I.1 example uses =therefore= for the final equalities and
+distinctness conclusions:
+
+#+begin_example
+therefore distinct C A
+therefore distinct C B
+#+end_example
+
+=have= can check intermediate radius equalities without exporting them, but
+the current example does not include those intermediate checks.
+No theorem declaration or import syntax is implemented.
 
 Run a script with =gnomon <proof-file>=. The CLI echoes the script, then prints
 =proof is correct= and exits 0 on success. On a syntax or proof failure it

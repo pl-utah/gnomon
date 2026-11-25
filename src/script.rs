@@ -1,16 +1,17 @@
 use nom::{
-    bytes::complete::take_while1, character::complete::space1, combinator::all_consuming,
-    multi::separated_list1, IResult,
+    IResult, bytes::complete::take_while1, character::complete::space1, combinator::all_consuming,
+    multi::separated_list1,
 };
 
-use crate::context::Context;
+use crate::context::{Context, NamedFact};
 
 enum Command {
     Point(String),
     Distinct(String, String),
     Circle(String, String, String),
     Intersect(String, String, String),
-    Equal(String, String, String, String),
+    Have(NamedFact),
+    Therefore(NamedFact),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -62,11 +63,21 @@ fn execute(context: &mut Context, command: Command) -> Result<(), String> {
             .construct_intersection(name, &alpha, &beta)
             .map(|_| ())
             .map_err(|error| format!("{error:?}")),
-        Command::Equal(a, b, c, d) => match context.has_equal_lengths(&a, &b, &c, &d) {
-            Ok(true) => Ok(()),
-            Ok(false) => Err(format!("assertion failed: equal {a} {b} {c} {d}")),
-            Err(error) => Err(format!("{error:?}")),
-        },
+        Command::Have(fact) => check_fact(context, fact, false),
+        Command::Therefore(fact) => check_fact(context, fact, true),
+    }
+}
+
+fn check_fact(context: &mut Context, named_fact: NamedFact, export: bool) -> Result<(), String> {
+    match context.known_fact(&named_fact) {
+        Ok(Some(fact)) => {
+            if export {
+                context.conclusions.insert(fact);
+            }
+            Ok(())
+        }
+        Ok(None) => Err(format!("assertion failed: {named_fact}")),
+        Err(error) => Err(format!("{error:?}")),
     }
 }
 
@@ -89,12 +100,32 @@ fn parse_command(input: &str) -> Result<Command, ()> {
             (*alpha).to_owned(),
             (*beta).to_owned(),
         )),
-        ["equal", a, b, c, d] => Ok(Command::Equal(
+        ["equal", a, b, c, d] => Ok(Command::Have(NamedFact::EqualLengths(
             (*a).to_owned(),
             (*b).to_owned(),
             (*c).to_owned(),
             (*d).to_owned(),
-        )),
+        ))),
+        ["have", "equal", a, b, c, d] => Ok(Command::Have(NamedFact::EqualLengths(
+            (*a).to_owned(),
+            (*b).to_owned(),
+            (*c).to_owned(),
+            (*d).to_owned(),
+        ))),
+        ["have", "distinct", a, b] => Ok(Command::Have(NamedFact::DistinctPoints(
+            (*a).to_owned(),
+            (*b).to_owned(),
+        ))),
+        ["therefore", "equal", a, b, c, d] => Ok(Command::Therefore(NamedFact::EqualLengths(
+            (*a).to_owned(),
+            (*b).to_owned(),
+            (*c).to_owned(),
+            (*d).to_owned(),
+        ))),
+        ["therefore", "distinct", a, b] => Ok(Command::Therefore(NamedFact::DistinctPoints(
+            (*a).to_owned(),
+            (*b).to_owned(),
+        ))),
         _ => Err(()),
     }
 }

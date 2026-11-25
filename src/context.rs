@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 use crate::{
     engine::{ConstructionError, Engine},
@@ -14,10 +17,26 @@ pub enum ContextError {
     Construction(ConstructionError),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NamedFact {
+    DistinctPoints(String, String),
+    EqualLengths(String, String, String, String),
+}
+
+impl fmt::Display for NamedFact {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DistinctPoints(a, b) => write!(formatter, "distinct {a} {b}"),
+            Self::EqualLengths(a, b, c, d) => write!(formatter, "equal {a} {b} {c} {d}"),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Context {
     pub engine: Engine,
     pub names: HashMap<String, Sorts>,
+    pub conclusions: HashSet<Fact>,
 }
 
 impl Context {
@@ -80,20 +99,19 @@ impl Context {
         Ok(point)
     }
 
-    pub fn has_equal_lengths(
-        &self,
-        a_name: &str,
-        b_name: &str,
-        c_name: &str,
-        d_name: &str,
-    ) -> Result<bool, ContextError> {
-        let a = self.resolve_point(a_name)?;
-        let b = self.resolve_point(b_name)?;
-        let c = self.resolve_point(c_name)?;
-        let d = self.resolve_point(d_name)?;
-        Ok(self
-            .engine
-            .contains(&Fact::EqualLengths(Length::new(a, b), Length::new(c, d))))
+    pub fn known_fact(&self, named_fact: &NamedFact) -> Result<Option<Fact>, ContextError> {
+        let fact = match named_fact {
+            NamedFact::DistinctPoints(a, b) => {
+                Fact::DistinctPoints(self.resolve_point(a)?, self.resolve_point(b)?)
+            }
+            NamedFact::EqualLengths(a, b, c, d) => Fact::EqualLengths(
+                Length::new(self.resolve_point(a)?, self.resolve_point(b)?),
+                Length::new(self.resolve_point(c)?, self.resolve_point(d)?),
+            ),
+        }
+        .normalize();
+
+        Ok(self.engine.contains(&fact).then_some(fact))
     }
 
     fn ensure_name_available(&self, name: &str) -> Result<(), ContextError> {

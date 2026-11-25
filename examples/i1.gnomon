@@ -1,9 +1,12 @@
 point A
 point B
-
 distinct A B
+
 circle alpha A B
 circle beta B A
 intersect C alpha beta
-equal A B B C
-equal B C C A
+
+therefore equal A B B C
+therefore equal B C C A
+therefore distinct C A
+therefore distinct C B

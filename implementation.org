@@ -3,8 +3,9 @@
 * Scope
 
 Paper: Avigad, Dean & Mumma, [[https://arxiv.org/html/0810.4315v3][A formal system for Euclid's Elements]]. This is
-the paper's main I.1 proof in §4.2, not its nondegeneracy auxiliaries or all
-of \(E\). [X] means implemented in this checkout; [ ] means absent. A
+the paper's main I.1 proof in §4.2, with the requested final =c ≠ a,b= checks;
+it excludes other nondegeneracy auxiliaries and all of \(E\). [X] means
+implemented in this checkout; [ ] means absent. A
 represented fact is not automatically an implemented inference.
 
 * Language: sorts, terms, and facts (§3.1)
@@ -36,14 +37,22 @@ represented fact is not automatically an implemented inference.
   intersection are exposed through =Context= — [[file:src/context.rs::23][src/context.rs]]. The
   line-oriented script runner and CLI are implemented; see
   [[file:syntax.org][syntax.org]] for their language and behavior.
+- [X] Resolve/check named facts through =Context::known_fact= and record
+  exported conclusions in =Context::conclusions= — [[file:src/context.rs::39][src/context.rs]],
+  [[file:src/context.rs::102][src/context.rs]]. It returns the normalized fact only
+  when known; otherwise no conclusion is recorded.
+- [X] Script commands =have= and =therefore= check named equalities or
+  distinctness; =therefore= exports only the checked normalized fact.
+  Bare =equal= is a check-only compatibility form; bare =distinct= remains an
+  assumption — [[file:src/script.rs::71][src/script.rs]]. See [[file:syntax.org][syntax.org]].
 
 ** Storable facts
 
 All implemented fact variants are in [[file:src/types.rs::28][src/types.rs]]. =Engine::facts= stores
 known facts, including assumptions and inferred consequences; explicit input
 assumptions are also tracked separately in =Engine::assumptions= —
-[[file:src/engine.rs::18][src/engine.rs]]. =Context::has_equal_lengths= checks whether a named length
-equality is known without inserting it — [[file:src/context.rs::83][src/context.rs]].
+[[file:src/engine.rs::18][src/engine.rs]]. =Context::conclusions= separately records checked
+results exported by =therefore=; =have= does not add one.
 
 - [X] =DistinctPoints(a,b)=
 - [X] =CenterOfCircle(a,α)=
@@ -95,10 +104,17 @@ enumerate =known_objects=. Rules below cite their paper sections and rule number
   #+begin_example
   CenterOfCircle(a, α)   CenterOfCircle(b, α)  ⇒  a = b
   #+end_example
-- [ ] Inside excludes on-circle (circle axiom 4):
+- [X] Inside-point / boundary-point distinctness, derived by unit propagation
+  from E §3.4 circle axiom 4:
   #+begin_example
-  InsideCircle(a, α)  ⇒  not OnCircle(a, α)
+  InsideCircle(P, γ)   OnCircle(Q, γ)
+  ───────────────────────────────────
+  DistinctPoints(P, Q)
   #+end_example
+  [[file:src/infer.rs::27][src/infer.rs]]. This is the optimized consequence of
+  =InsideCircle(P,γ) ⇒ ¬OnCircle(P,γ)= plus equality propagation; it is not a
+  new geometric axiom. Both points must concern the same circle; unrelated
+  circles and fresh IDs alone do not imply distinctness.
 
 ** Metric inferences (§3.5)
 - [X] Equality transitivity, any shared side (all four positions):
@@ -160,26 +176,12 @@ Use segment symmetry and equality transitivity:
   distinctness from any existing point.
 - [X] Given the center/on-circle facts for =c=, infer the two radius
   equalities, then use equality transitivity to relate them — rules above.
-  The sequential API is tested; script syntax is documented separately.
-- [X] Check the final equilateral-triangle goal by querying the two target
-  =EqualLengths= facts; the sequential API test verifies them —
-  [[file:src/context.rs::133][src/context.rs]].
-- [ ] Prove the auxiliary claims =c ≠ a= and =c ≠ b=; these are discussed
-  after the main proof in §4.2 and are outside this inventory's scope.
-
-* Tests
-
-- [X] Sequential I.1 through =Context=: declare =A= and =B=, assume
-  =A ≠ B=, construct the circles, infer intersection before introducing =C=,
-  then construct =C= and verify both target equalities —
-  [[file:src/context.rs::133][src/context.rs]].
-- [X] Failed constructions, unknown/wrong-sort names, and duplicate names
-  leave state and bindings unchanged; fresh IDs remain sequential —
-  [[file:src/context.rs::178][src/context.rs]].
-- [X] Inference regression tests cover unrelated circles, equalities, and
-  stable saturation — [[file:src/infer.rs::84][src/infer.rs]].
-- [X] Script tests cover the runnable I.1 example, false equality assertions,
-  and syntax errors with line numbers — [[file:src/script.rs::107][src/script.rs]].
-- [X] =cargo test= passes: 9 tests; =cargo check= passes. CLI checks confirm
-  the example succeeds and false equality/syntax failures report their line
-  and exit with status 1.
+  The current example does not issue intermediate =have= checks for the radii.
+- [X] Check the final equalities with =therefore equal=; the checked,
+  normalized facts are recorded in =Context::conclusions=.
+- [X] Derive and export =c ≠ a= and =c ≠ b= with =therefore distinct= after
+  circle construction. This uses the same-circle inside/boundary inference,
+  not freshness; see [[file:syntax.org][syntax.org]].
+- [X] Verification: =cargo check= and running
+  =cargo run --quiet -- examples/i1.gnomon= succeeds; the CLI prints
+  =proof is correct=.

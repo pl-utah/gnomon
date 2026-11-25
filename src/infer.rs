@@ -9,6 +9,7 @@ impl Engine {
             let mut new_facts = Vec::new();
             let mut on_circle = Vec::new();
             let mut centers = Vec::new();
+            let mut inside_facts = Vec::new();
             let mut equal_lengths = Vec::new();
             for fact in &self.facts {
                 match fact.normalize() {
@@ -17,8 +18,17 @@ impl Engine {
                         centers.push((center, circle));
                     }
                     Fact::OnCircle(point, circle) => on_circle.push((point, circle)),
+                    Fact::InsideCircle(point, circle) => inside_facts.push((point, circle)),
                     Fact::EqualLengths(a, b) => equal_lengths.push((a, b)),
                     _ => {}
+                }
+            }
+
+            for &(inside_point, inside_gamma) in &inside_facts {
+                for &(boundary_point, boundary_circle) in &on_circle {
+                    if inside_gamma == boundary_circle && inside_point != boundary_point {
+                        new_facts.push(Fact::DistinctPoints(inside_point, boundary_point));
+                    }
                 }
             }
 
