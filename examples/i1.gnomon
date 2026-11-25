@@ -1,0 +1,9 @@
+point A
+point B
+
+distinct A B
+circle alpha A B
+circle beta B A
+intersect C alpha beta
+equal A B B C
+equal B C C A

@@ -1,0 +1,23 @@
+#+title: Gnomon proof-script syntax
+
+Each nonblank line is one whitespace-separated, fixed-arity command. Blank
+lines are ignored. The parser uses nom: [[file:src/script.rs][src/script.rs]].
+
+#+begin_example
+script   ::= (blank-line | command newline)* command?
+command  ::= "point" NAME
+           | "distinct" NAME NAME
+           | "circle" NAME NAME NAME
+           | "intersect" NAME NAME NAME
+           | "equal" NAME NAME NAME NAME
+NAME     ::= [A-Za-z0-9_]+
+#+end_example
+
+=equal A B C D= checks that lengths =AB= and =CD= are already equal. It is
+an assertion only: it never inserts an equality fact.
+
+Run a script with =gnomon <proof-file>=. The CLI echoes the script, then prints
+=proof is correct= and exits 0 on success. On a syntax or proof failure it
+prints =proof is not correct=, reports the line and error, and exits 1. A
+missing argument or unreadable proof file exits 2. See the runnable I.1 example:
+[[file:examples/i1.gnomon][examples/i1.gnomon]].

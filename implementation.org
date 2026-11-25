@@ -1,0 +1,185 @@
+#+title: Euclid I.1 implementation reference
+
+* Scope
+
+Paper: Avigad, Dean & Mumma, [[https://arxiv.org/html/0810.4315v3][A formal system for Euclid's Elements]]. This is
+the paper's main I.1 proof in §4.2, not its nondegeneracy auxiliaries or all
+of \(E\). [X] means implemented in this checkout; [ ] means absent. A
+represented fact is not automatically an implemented inference.
+
+* Language: sorts, terms, and facts (§3.1)
+
+** Sorts and terms
+- [X] Sort tags for points and circles: =Sorts::Point= and =Sorts::Circle= —
+  [[file:src/types.rs::7][src/types.rs]].
+- [X] Point identifiers: =PointId= — [[file:src/types.rs::1][src/types.rs]].
+- [X] Circle identifiers: =CircleId= — [[file:src/types.rs::4][src/types.rs]].
+- [ ] Line sort and line identifiers.
+- [ ] Angle magnitude sort/terms.
+- [ ] Area magnitude sort/terms.
+- [X] Segment-length term: =Length(a,b)= — [[file:src/types.rs::13][src/types.rs]].
+- [ ] General magnitude terms.
+- [ ] Zero magnitude.
+- [ ] Magnitude sums.
+- [ ] Magnitude inequalities.
+- [X] Registry of known point/circle objects: =Engine::known_objects= is a
+  =HashSet<Sorts>= — [[file:src/engine.rs::15][src/engine.rs]]. It records objects separately from
+  facts; inference matches facts and does not enumerate this registry.
+
+** Runtime API ownership
+- [X] =Engine= owns known objects, facts, assumptions, fresh point/circle IDs,
+  construction checks, and inference — [[file:src/engine.rs::15][src/engine.rs]].
+- [X] =Context= owns an =Engine= and maps user names to =Sorts= —
+  [[file:src/context.rs::17][src/context.rs]]. It resolves point/circle names with sort checks and rejects
+  duplicate output names before construction.
+- [X] Given-point declaration, named circle construction, and named circle
+  intersection are exposed through =Context= — [[file:src/context.rs::23][src/context.rs]]. The
+  line-oriented script runner and CLI are implemented; see
+  [[file:syntax.org][syntax.org]] for their language and behavior.
+
+** Storable facts
+
+All implemented fact variants are in [[file:src/types.rs::28][src/types.rs]]. =Engine::facts= stores
+known facts, including assumptions and inferred consequences; explicit input
+assumptions are also tracked separately in =Engine::assumptions= —
+[[file:src/engine.rs::18][src/engine.rs]]. =Context::has_equal_lengths= checks whether a named length
+equality is known without inserting it — [[file:src/context.rs::83][src/context.rs]].
+
+- [X] =DistinctPoints(a,b)=
+- [X] =CenterOfCircle(a,α)=
+- [X] =OnCircle(a,α)=
+- [X] =InsideCircle(a,α)=
+- [X] =CirclesIntersect(α,β)=
+- [X] =EqualLengths(Length(a,b),Length(c,d))=
+- [ ] =OnLine(a,L)=.
+- [ ] =SameSide(a,b,L)=.
+- [ ] =Between(a,b,c)=.
+- [ ] Line-circle incidence and intersection facts.
+- [ ] Length inequalities.
+- [ ] Angle facts.
+- [ ] Area facts.
+
+** Canonical forms (not inference rules)
+- [X] Segment reversal: =Length(a,b) ≡ Length(b,a)= by sorting endpoints in
+  =Length::new= — [[file:src/types.rs::18][src/types.rs]]. This provides symmetry of segment
+  notation; it does not prove equality transitivity.
+- [X] Equality-side order: =EqualLengths(x,y) ≡ EqualLengths(y,x)= via
+  =Fact::normalize= — [[file:src/types.rs::38][src/types.rs]], applied when facts are inserted
+  or queried — [[file:src/engine.rs::24][src/engine.rs]]. This canonicalization is also distinct
+  from transitivity.
+
+* Implemented inference rules
+
+Call =engine.infer_facts()= to repeatedly apply these rules in place until no
+new facts are added — [[file:src/infer.rs::6][src/infer.rs]]. It mutates =engine.facts=; it does not
+enumerate =known_objects=. Rules below cite their paper sections and rule numbers.
+
+** Diagrammatic inferences (§3.4)
+- [X] Center is inside its circle (circle axiom 3):
+  #+begin_example
+  CenterOfCircle(a, α)  ⇒  InsideCircle(a, α)
+  #+end_example
+  [[file:src/infer.rs::15][src/infer.rs]]
+- [X] Circles intersect (intersection rule 5):
+  #+begin_example
+  OnCircle(a, α)   InsideCircle(a, β)
+  OnCircle(b, β)   InsideCircle(b, α)
+  ───────────────────────────────────
+  CirclesIntersect(α, β)
+  #+end_example
+  [[file:src/infer.rs::61][src/infer.rs]]. In I.1, each circle's center lies on the
+  other circle and is inside its own circle, so these premises follow from
+  the construction facts plus the center-inside rule. The result says the
+  circles intersect; it does not select an intersection point.
+- [ ] Center uniqueness (circle axiom 2):
+  #+begin_example
+  CenterOfCircle(a, α)   CenterOfCircle(b, α)  ⇒  a = b
+  #+end_example
+- [ ] Inside excludes on-circle (circle axiom 4):
+  #+begin_example
+  InsideCircle(a, α)  ⇒  not OnCircle(a, α)
+  #+end_example
+
+** Metric inferences (§3.5)
+- [X] Equality transitivity, any shared side (all four positions):
+  #+begin_example
+  EqualLengths(x,y)   EqualLengths(x,z)  ⇒  EqualLengths(y,z)
+  EqualLengths(x,y)   EqualLengths(z,x)  ⇒  EqualLengths(y,z)
+  EqualLengths(y,x)   EqualLengths(x,z)  ⇒  EqualLengths(y,z)
+  EqualLengths(y,x)   EqualLengths(z,x)  ⇒  EqualLengths(y,z)
+  #+end_example
+  Implemented at [[file:src/infer.rs::39][src/infer.rs]]. Equality-side normalization also
+  lets these facts be queried in either order.
+- [ ] Length is zero iff its endpoints are equal (metric rule 1, §3.5).
+- [ ] Length nonnegativity (metric rule 2, §3.5).
+
+** Diagram-segment transfers (§3.6)
+- [X] Equal radii (rule 3, forward direction):
+  #+begin_example
+  CenterOfCircle(a, α)   OnCircle(b, α)   OnCircle(c, α)
+  ──────────────────────────────────────────────────────
+  EqualLengths(Length(a,b), Length(a,c))
+  #+end_example
+  Implemented at [[file:src/infer.rs::25][src/infer.rs]]. This is an inference rule, not merely
+  storage of =EqualLengths=.
+- [ ] Rule 1, segment addition:
+  #+begin_example
+  Between(a,b,c)  ⇒  Length(a,b) + Length(b,c) = Length(a,c)
+  #+end_example
+- [ ] Rule 2, circle identity from common center and radius.
+- [ ] Rule 3, converse direction: radius equality implies circle incidence.
+- [ ] Rule 4, radius inequality characterizes inside-circle points.
+
+* Euclid I.1: construction and proof support (§§3.3, 4.2)
+
+Main proof outline in pseudomath:
+
+#+begin_example
+Given a ≠ b
+Construct α centered at a through b; construct β centered at b through a
+Infer CirclesIntersect(α, β)
+Choose c on α ∩ β
+Transfer radii: Length(a,b) = Length(a,c)
+                Length(b,a) = Length(b,c)
+Use segment symmetry and equality transitivity:
+                Length(a,b) = Length(b,c) = Length(c,a)
+#+end_example
+
+- [X] Record the input hypothesis =a ≠ b= separately from inferred facts —
+  =Context::assume_distinct_points= resolves the names, while =Engine= records
+  it in =assumptions= and the engine fact set for construction checks —
+  [[file:src/context.rs::35][src/context.rs]], [[file:src/engine.rs::40][src/engine.rs]].
+- [X] Construct a circle centered at one point through another (construction
+  rule 2, §3.3) after both points are registered and =DistinctPoints= is known —
+  [[file:src/engine.rs::57][src/engine.rs]]. It adds the center/on-circle facts and saturates inference.
+- [X] Infer the two constructed circles intersect, from their center/on-circle
+  facts (diagram intersection rule 5, §3.4; see rule above).
+- [X] Choose/create =c= as a fresh point on both circles after
+  =CirclesIntersect= is known (intersection construction rule 6, §3.3) —
+  [[file:src/engine.rs::79][src/engine.rs]]. The fresh ID is a new symbol, not a proof of geometric
+  distinctness from any existing point.
+- [X] Given the center/on-circle facts for =c=, infer the two radius
+  equalities, then use equality transitivity to relate them — rules above.
+  The sequential API is tested; script syntax is documented separately.
+- [X] Check the final equilateral-triangle goal by querying the two target
+  =EqualLengths= facts; the sequential API test verifies them —
+  [[file:src/context.rs::133][src/context.rs]].
+- [ ] Prove the auxiliary claims =c ≠ a= and =c ≠ b=; these are discussed
+  after the main proof in §4.2 and are outside this inventory's scope.
+
+* Tests
+
+- [X] Sequential I.1 through =Context=: declare =A= and =B=, assume
+  =A ≠ B=, construct the circles, infer intersection before introducing =C=,
+  then construct =C= and verify both target equalities —
+  [[file:src/context.rs::133][src/context.rs]].
+- [X] Failed constructions, unknown/wrong-sort names, and duplicate names
+  leave state and bindings unchanged; fresh IDs remain sequential —
+  [[file:src/context.rs::178][src/context.rs]].
+- [X] Inference regression tests cover unrelated circles, equalities, and
+  stable saturation — [[file:src/infer.rs::84][src/infer.rs]].
+- [X] Script tests cover the runnable I.1 example, false equality assertions,
+  and syntax errors with line numbers — [[file:src/script.rs::107][src/script.rs]].
+- [X] =cargo test= passes: 9 tests; =cargo check= passes. CLI checks confirm
+  the example succeeds and false equality/syntax failures report their line
+  and exit with status 1.
